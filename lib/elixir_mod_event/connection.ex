@@ -29,6 +29,7 @@ defmodule FSModEvent.Connection do
     buffer: '',
     state: nil,
     sender: nil,
+    parent: nil,
     jobs: %{},
     listeners: %{}
 
@@ -57,12 +58,13 @@ defmodule FSModEvent.Connection do
   @spec start(
     atom, String.t, Integer.t, String.t
   ) :: GenServer.on_start
-  def start(name, host, port, password) do
+  def start(name, host, port, password, parent \\ nil) do
     options = [
       host: host,
       port: port,
       password: password,
-      name: name
+      name: name,
+      parent: parent
     ]
     GenServer.start __MODULE__, options, name: name
   end
@@ -73,12 +75,13 @@ defmodule FSModEvent.Connection do
   @spec start_link(
     atom, String.t, Integer.t, String.t
   ) :: GenServer.on_start
-  def start_link(name, host, port, password) do
+  def start_link(name, host, port, password, parent \\ nil) do
     options = [
       host: host,
       port: port,
       password: password,
-      name: name
+      name: name,
+      parent: parent
     ]
     GenServer.start_link __MODULE__, options, name: name
   end
@@ -295,7 +298,7 @@ defmodule FSModEvent.Connection do
   def init(options) do
     Logger.info "Starting FS connection"
     {:ok, socket} = :gen_tcp.connect(
-      to_char_list(options[:host]), options[:port], [
+      to_charlist(options[:host]), options[:port], [
         packet: 0, active: :once, mode: :list
       ]
     )
@@ -308,7 +311,8 @@ defmodule FSModEvent.Connection do
       buffer: '',
       sender: nil,
       state: :connecting,
-      jobs: %{}
+      jobs: %{},
+      parent: options[:parent]
     }}
   end
 
@@ -403,9 +407,12 @@ defmodule FSModEvent.Connection do
 
   defp process(
     pkt = %Packet{type: "command/reply"},
-    state = %FSModEvent.Connection{state: :connecting}
+    state = %FSModEvent.Connection{state: :connecting, parent: parent}
   ) do
     if pkt.success do
+      if parent do
+        Process.send(parent, :authed, [])
+      end
       %FSModEvent.Connection{state | state: :connected}
     else
       raise "Could not login to FS: #{inspect pkt}"
