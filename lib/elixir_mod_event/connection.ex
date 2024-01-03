@@ -184,7 +184,7 @@ defmodule FSModEvent.Connection do
     GenServer.server, String.t, [{String.t, String.t}], String.t
   ) :: FSModEvent.Packet.t
   def sendevent(name, event, headers \\ [], body \\ "") do
-    length = String.length body
+    length = byte_size(body)
     headers = [{"content-length", to_string(length)}|headers]
     headers = for {k, v} <- headers, do: "#{k}: #{v}"
     lines = Enum.join ["sendevent #{event}"|headers], "\n"
